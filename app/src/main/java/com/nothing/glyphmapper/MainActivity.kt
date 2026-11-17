@@ -631,7 +631,7 @@ private fun Phone3aGlyphVisualizerCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 GlyphStrip.entries.forEach { strip ->
-                    val isTesting = activeTestStrip == strip
+                    val isTesting = activeStrip == strip
                     OutlinedButton(
                         onClick = { onTestStrip(strip) },
                         modifier = Modifier.weight(1f),
