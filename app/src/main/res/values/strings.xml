@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Nothing 3a Glyph Mapper</string>
+    <string name="service_name">Glyph Notification Listener</string>
+</resources>
