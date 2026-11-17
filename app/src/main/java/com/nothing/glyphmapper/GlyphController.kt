@@ -18,48 +18,48 @@ object GlyphController {
     private const val TAG = "GlyphController"
 
     private val STRIP_A_CHANNELS = intArrayOf(
-        Glyph.Code_24111.A1,
-        Glyph.Code_24111.A2,
-        Glyph.Code_24111.A3,
-        Glyph.Code_24111.A4,
-        Glyph.Code_24111.A5,
-        Glyph.Code_24111.A6,
-        Glyph.Code_24111.A7,
-        Glyph.Code_24111.A8,
-        Glyph.Code_24111.A9,
-        Glyph.Code_24111.A10,
-        Glyph.Code_24111.A11
+        Glyph.Code_24111.A_1,
+        Glyph.Code_24111.A_2,
+        Glyph.Code_24111.A_3,
+        Glyph.Code_24111.A_4,
+        Glyph.Code_24111.A_5,
+        Glyph.Code_24111.A_6,
+        Glyph.Code_24111.A_7,
+        Glyph.Code_24111.A_8,
+        Glyph.Code_24111.A_9,
+        Glyph.Code_24111.A_10,
+        Glyph.Code_24111.A_11
     )
 
     private val STRIP_B_CHANNELS = intArrayOf(
-        Glyph.Code_24111.B1,
-        Glyph.Code_24111.B2,
-        Glyph.Code_24111.B3,
-        Glyph.Code_24111.B4,
-        Glyph.Code_24111.B5
+        Glyph.Code_24111.B_1,
+        Glyph.Code_24111.B_2,
+        Glyph.Code_24111.B_3,
+        Glyph.Code_24111.B_4,
+        Glyph.Code_24111.B_5
     )
 
     private val STRIP_C_CHANNELS = intArrayOf(
-        Glyph.Code_24111.C1,
-        Glyph.Code_24111.C2,
-        Glyph.Code_24111.C3,
-        Glyph.Code_24111.C4,
-        Glyph.Code_24111.C5,
-        Glyph.Code_24111.C6,
-        Glyph.Code_24111.C7,
-        Glyph.Code_24111.C8,
-        Glyph.Code_24111.C9,
-        Glyph.Code_24111.C10,
-        Glyph.Code_24111.C11,
-        Glyph.Code_24111.C12,
-        Glyph.Code_24111.C13,
-        Glyph.Code_24111.C14,
-        Glyph.Code_24111.C15,
-        Glyph.Code_24111.C16,
-        Glyph.Code_24111.C17,
-        Glyph.Code_24111.C18,
-        Glyph.Code_24111.C19,
-        Glyph.Code_24111.C20
+        Glyph.Code_24111.C_1,
+        Glyph.Code_24111.C_2,
+        Glyph.Code_24111.C_3,
+        Glyph.Code_24111.C_4,
+        Glyph.Code_24111.C_5,
+        Glyph.Code_24111.C_6,
+        Glyph.Code_24111.C_7,
+        Glyph.Code_24111.C_8,
+        Glyph.Code_24111.C_9,
+        Glyph.Code_24111.C_10,
+        Glyph.Code_24111.C_11,
+        Glyph.Code_24111.C_12,
+        Glyph.Code_24111.C_13,
+        Glyph.Code_24111.C_14,
+        Glyph.Code_24111.C_15,
+        Glyph.Code_24111.C_16,
+        Glyph.Code_24111.C_17,
+        Glyph.Code_24111.C_18,
+        Glyph.Code_24111.C_19,
+        Glyph.Code_24111.C_20
     )
 
     private data class StripState(
