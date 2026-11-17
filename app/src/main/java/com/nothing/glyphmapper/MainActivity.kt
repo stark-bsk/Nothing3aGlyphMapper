@@ -14,10 +14,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,7 +33,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -42,19 +45,25 @@ import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -67,45 +76,38 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.nothing.glyphmapper.ui.theme.NothingBlack
+import com.nothing.glyphmapper.ui.theme.NothingCard
+import com.nothing.glyphmapper.ui.theme.NothingCardElevated
+import com.nothing.glyphmapper.ui.theme.NothingGlyphMapperTheme
+import com.nothing.glyphmapper.ui.theme.NothingGreen
+import com.nothing.glyphmapper.ui.theme.NothingHairline
+import com.nothing.glyphmapper.ui.theme.NothingMuted
+import com.nothing.glyphmapper.ui.theme.NothingRed
+import com.nothing.glyphmapper.ui.theme.NothingWhite
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-private val NothingBlack = Color(0xFF000000)
-private val NothingSurface = Color(0xFF141414)
-private val NothingSurfaceElevated = Color(0xFF1E1E1E)
-private val NothingBorder = Color(0xFF2C2C2E)
-private val NothingRed = Color(0xFFD71921)
-private val NothingWhite = Color(0xFFFFFFFF)
-private val NothingMuted = Color(0xFF8E8E93)
-
-private val NothingColorScheme = darkColorScheme(
-    primary = NothingRed,
-    onPrimary = NothingWhite,
-    background = NothingBlack,
-    onBackground = NothingWhite,
-    surface = NothingSurface,
-    onSurface = NothingWhite,
-    surfaceVariant = NothingSurfaceElevated,
-    onSurfaceVariant = NothingMuted,
-    outline = NothingBorder
-)
 
 data class InstalledApp(
     val packageName: String,
@@ -119,7 +121,7 @@ class MainActivity : ComponentActivity() {
 
     private val notificationPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
-    ) { /* Permission result handled via system state */ }
+    ) { /* Permission state is reflected via NotificationManagerCompat */ }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -139,13 +141,14 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            MaterialTheme(colorScheme = NothingColorScheme) {
+            NothingGlyphMapperTheme {
                 GlyphMapperScreen(preferences = preferences)
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun GlyphMapperScreen(preferences: GlyphPreferences) {
     val context = LocalContext.current
@@ -194,7 +197,6 @@ fun GlyphMapperScreen(preferences: GlyphPreferences) {
                     it.packageName.contains(query, ignoreCase = true)
             }
         }
-        // Keep mapped apps easy to spot at the top when not searching
         if (query.isEmpty()) {
             base.sortedWith(
                 compareByDescending<InstalledApp> { settings.mappings.containsKey(it.packageName) }
@@ -222,299 +224,168 @@ fun GlyphMapperScreen(preferences: GlyphPreferences) {
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(NothingBlack)
-            .statusBarsPadding()
-            .padding(horizontal = 16.dp)
-    ) {
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Column {
-                Text(
-                    text = "GLYPH MAPPER",
-                    color = NothingWhite,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace,
-                    letterSpacing = 1.5.sp
+    Scaffold(
+        containerColor = NothingBlack,
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    if (settings.masterEnabled && hasNotificationAccess) {
+                                        NothingRed
+                                    } else {
+                                        NothingMuted
+                                    }
+                                )
+                        )
+                        Text(
+                            text = "GLYPH MAPPER // 3A",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = NothingWhite
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = NothingBlack,
+                    titleContentColor = NothingWhite
                 )
-                Text(
-                    text = if (GlyphController.isPhone3a()) {
-                        "NOTHING PHONE (3a) // 24111 READY"
-                    } else {
-                        "TARGET: NOTHING PHONE (3a) [24111]"
-                    },
-                    color = NothingMuted,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .size(10.dp)
-                    .clip(CircleShape)
-                    .background(if (settings.masterEnabled && hasNotificationAccess) NothingRed else NothingMuted)
             )
         }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // Status & Controls Card
-        Surface(
-            color = NothingSurface,
-            shape = RoundedCornerShape(16.dp),
-            border = BorderStroke(1.dp, NothingBorder),
-            modifier = Modifier.fillMaxWidth()
+    ) { innerPadding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(NothingBlack)
+                .padding(innerPadding)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding = PaddingValues(top = 4.dp, bottom = 28.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+            // 1. Interactive Phone (3a) Rear Glyph Visualizer Card
+            item(key = "visualizer_card") {
+                Phone3aGlyphVisualizerCard(
+                    activeStrip = activeTestStrip,
+                    isDevice3a = GlyphController.isPhone3a(),
+                    onTestStrip = { strip -> triggerStripTest(strip) }
+                )
+            }
+
+            // 2. Material 3 Status & Controls Card
+            item(key = "controls_card") {
+                StatusAndControlsCard(
+                    hasNotificationAccess = hasNotificationAccess,
+                    masterEnabled = settings.masterEnabled,
+                    pulseMode = settings.pulseMode,
+                    onGrantAccess = {
+                        context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
+                    },
+                    onMasterToggle = { enabled ->
+                        scope.launch { preferences.setMasterEnabled(enabled) }
+                    },
+                    onPulseToggle = { pulse ->
+                        scope.launch { preferences.setPulseMode(pulse) }
+                    }
+                )
+            }
+
+            // 3. Sticky Search Bar & Section Header
+            stickyHeader(key = "search_header") {
+                Surface(
+                    color = NothingBlack,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = if (hasNotificationAccess) {
-                                Icons.Default.CheckCircle
-                            } else {
-                                Icons.Default.NotificationsOff
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "APP MAPPINGS",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = NothingMuted
+                            )
+                            Text(
+                                text = "${settings.mappings.size} ACTIVE",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = if (settings.mappings.isNotEmpty()) NothingRed else NothingMuted
+                            )
+                        }
+
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            placeholder = {
+                                Text(
+                                    text = "Search ${installedApps.size} installed apps...",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = NothingMuted
+                                )
                             },
-                            contentDescription = null,
-                            tint = if (hasNotificationAccess) Color(0xFF34C759) else NothingRed,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = if (hasNotificationAccess) {
-                                "Notification Access Granted"
-                            } else {
-                                "Notification Access Required"
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = "Search",
+                                    tint = NothingMuted
+                                )
                             },
-                            color = NothingWhite,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium
+                            trailingIcon = {
+                                if (searchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { searchQuery = "" }) {
+                                        Icon(
+                                            imageVector = Icons.Default.Close,
+                                            contentDescription = "Clear search",
+                                            tint = NothingMuted
+                                        )
+                                    }
+                                }
+                            },
+                            singleLine = true,
+                            textStyle = MaterialTheme.typography.bodyLarge.copy(color = NothingWhite),
+                            shape = RoundedCornerShape(24.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = NothingCard,
+                                unfocusedContainerColor = NothingCard,
+                                focusedBorderColor = NothingRed,
+                                unfocusedBorderColor = NothingHairline,
+                                focusedTextColor = NothingWhite,
+                                unfocusedTextColor = NothingWhite,
+                                cursorColor = NothingRed
+                            ),
+                            modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
+            }
 
-                if (!hasNotificationAccess) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Button(
-                        onClick = {
-                            context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = NothingRed,
-                            contentColor = NothingWhite
-                        ),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.fillMaxWidth()
+            // 4. App Picker List
+            if (isLoadingApps) {
+                item(key = "loading_indicator") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 48.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "GRANT NOTIFICATION ACCESS",
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 12.sp
-                        )
+                        CircularProgressIndicator(color = NothingRed)
                     }
                 }
-
-                HorizontalDivider(
-                    color = NothingBorder,
-                    modifier = Modifier.padding(vertical = 12.dp)
-                )
-
-                // Master Toggle
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Master Glyph Mapping",
-                            color = NothingWhite,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = "Light up strips for unread mapped notifications",
-                            color = NothingMuted,
-                            fontSize = 12.sp
-                        )
-                    }
-                    Switch(
-                        checked = settings.masterEnabled,
-                        onCheckedChange = { enabled ->
-                            scope.launch { preferences.setMasterEnabled(enabled) }
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = NothingWhite,
-                            checkedTrackColor = NothingRed,
-                            uncheckedThumbColor = NothingMuted,
-                            uncheckedTrackColor = NothingSurfaceElevated
-                        )
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Pulse vs Solid Toggle
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = if (settings.pulseMode) "Breathing Pulse" else "Solid Glow",
-                            color = NothingWhite,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = if (settings.pulseMode) {
-                                "Gently animates active strips"
-                            } else {
-                                "Steady illumination while unread"
-                            },
-                            color = NothingMuted,
-                            fontSize = 12.sp
-                        )
-                    }
-                    Switch(
-                        checked = settings.pulseMode,
-                        onCheckedChange = { pulse ->
-                            scope.launch { preferences.setPulseMode(pulse) }
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = NothingWhite,
-                            checkedTrackColor = NothingRed,
-                            uncheckedThumbColor = NothingMuted,
-                            uncheckedTrackColor = NothingSurfaceElevated
-                        )
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        // Live Hardware Test Bar
-        Text(
-            text = "LIVE HARDWARE TEST (2S)",
-            color = NothingMuted,
-            fontSize = 11.sp,
-            fontFamily = FontFamily.Monospace,
-            letterSpacing = 1.sp
-        )
-        Spacer(modifier = Modifier.height(6.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            GlyphStrip.entries.forEach { strip ->
-                val isTesting = activeTestStrip == strip
-                OutlinedButton(
-                    onClick = { triggerStripTest(strip) },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, if (isTesting) NothingRed else NothingBorder),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = if (isTesting) NothingRed.copy(alpha = 0.2f) else NothingSurface,
-                        contentColor = if (isTesting) NothingRed else NothingWhite
-                    ),
-                    contentPadding = PaddingValues(vertical = 10.dp, horizontal = 4.dp)
-                ) {
-                    Text(
-                        text = "Test ${strip.label}",
-                        fontSize = 12.sp,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // Search Bar
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
-            placeholder = {
-                Text(
-                    text = "Search ${installedApps.size} installed apps...",
-                    color = NothingMuted,
-                    fontSize = 14.sp
-                )
-            },
-            leadingIcon = {
-                Icon(
-                    imageVector = Icons.Default.Search,
-                    contentDescription = "Search",
-                    tint = NothingMuted
-                )
-            },
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { searchQuery = "" }) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Clear search",
-                            tint = NothingMuted
-                        )
-                    }
-                }
-            },
-            singleLine = true,
-            shape = RoundedCornerShape(12.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = NothingSurface,
-                unfocusedContainerColor = NothingSurface,
-                focusedBorderColor = NothingRed,
-                unfocusedBorderColor = NothingBorder,
-                focusedTextColor = NothingWhite,
-                unfocusedTextColor = NothingWhite,
-                cursorColor = NothingRed
-            ),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // App Picker List
-        if (isLoadingApps) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(color = NothingRed)
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(bottom = 24.dp)
-            ) {
+            } else {
                 items(
                     items = filteredApps,
                     key = { it.packageName }
                 ) { app ->
                     val assignedStrips = settings.mappings[app.packageName].orEmpty()
-                    AppMappingRow(
+                    AppMappingCard(
                         app = app,
                         assignedStrips = assignedStrips,
                         onToggleStrip = { strip ->
@@ -530,25 +401,461 @@ fun GlyphMapperScreen(preferences: GlyphPreferences) {
 }
 
 @Composable
-private fun AppMappingRow(
+private fun Phone3aGlyphVisualizerCard(
+    activeStrip: GlyphStrip?,
+    isDevice3a: Boolean,
+    onTestStrip: (GlyphStrip) -> Unit
+) {
+    val stripAGlow by animateColorAsState(
+        targetValue = if (activeStrip == GlyphStrip.STRIP_A) NothingWhite else Color(0xFF333336),
+        animationSpec = tween(durationMillis = 180),
+        label = "stripA"
+    )
+    val stripBGlow by animateColorAsState(
+        targetValue = if (activeStrip == GlyphStrip.STRIP_B) NothingWhite else Color(0xFF333336),
+        animationSpec = tween(durationMillis = 180),
+        label = "stripB"
+    )
+    val stripCGlow by animateColorAsState(
+        targetValue = if (activeStrip == GlyphStrip.STRIP_C) NothingWhite else Color(0xFF333336),
+        animationSpec = tween(durationMillis = 180),
+        label = "stripC"
+    )
+
+    OutlinedCard(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.outlinedCardColors(containerColor = NothingCard),
+        border = BorderStroke(1.dp, NothingHairline),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "REAR GLYPH INTERFACE",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = NothingWhite
+                )
+                Surface(
+                    color = NothingCardElevated,
+                    shape = CircleShape,
+                    border = BorderStroke(1.dp, NothingHairline)
+                ) {
+                    Text(
+                        text = if (isDevice3a) "24111 // LIVE" else "MODEL 24111",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (isDevice3a) NothingRed else NothingMuted,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            // Minimalist Vector Silhouette of Nothing Phone (3a) Rear Panel
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(176.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Canvas(
+                    modifier = Modifier
+                        .size(width = 148.dp, height = 168.dp)
+                        .pointerInput(Unit) {
+                            detectTapGestures { offset ->
+                                val midX = size.width / 2f
+                                val midY = size.height / 2f
+                                when {
+                                    offset.x < midX -> onTestStrip(GlyphStrip.STRIP_C)
+                                    offset.y < midY -> onTestStrip(GlyphStrip.STRIP_A)
+                                    else -> onTestStrip(GlyphStrip.STRIP_B)
+                                }
+                            }
+                        }
+                ) {
+                    val w = size.width
+                    val h = size.height
+
+                    // Phone chassis
+                    drawRoundRect(
+                        color = Color(0xFF080808),
+                        topLeft = Offset.Zero,
+                        size = Size(w, h),
+                        cornerRadius = CornerRadius(24.dp.toPx(), 24.dp.toPx())
+                    )
+                    drawRoundRect(
+                        color = NothingHairline,
+                        topLeft = Offset.Zero,
+                        size = Size(w, h),
+                        cornerRadius = CornerRadius(24.dp.toPx(), 24.dp.toPx()),
+                        style = Stroke(width = 1.2.dp.toPx())
+                    )
+
+                    // Subtle internal hardware ring / coil outline
+                    val ringCenter = Offset(w * 0.5f, h * 0.42f)
+                    val ringRadius = w * 0.34f
+                    drawCircle(
+                        color = Color(0xFF1D1D1F),
+                        radius = ringRadius * 0.86f,
+                        center = ringCenter,
+                        style = Stroke(width = 1.dp.toPx())
+                    )
+
+                    // Phone (3a) horizontal camera pill island in upper-center
+                    val pillW = w * 0.56f
+                    val pillH = h * 0.19f
+                    val pillLeft = (w - pillW) / 2f
+                    val pillTop = ringCenter.y - pillH / 2f
+                    drawRoundRect(
+                        color = Color(0xFF18181A),
+                        topLeft = Offset(pillLeft, pillTop),
+                        size = Size(pillW, pillH),
+                        cornerRadius = CornerRadius(pillH / 2f, pillH / 2f)
+                    )
+                    drawRoundRect(
+                        color = Color(0xFF343438),
+                        topLeft = Offset(pillLeft, pillTop),
+                        size = Size(pillW, pillH),
+                        cornerRadius = CornerRadius(pillH / 2f, pillH / 2f),
+                        style = Stroke(width = 1.dp.toPx())
+                    )
+
+                    // Three camera lenses inside the pill
+                    val lensRadius = pillH * 0.25f
+                    val lensY = pillTop + pillH / 2f
+                    listOf(0.24f, 0.50f, 0.76f).forEach { frac ->
+                        drawCircle(
+                            color = Color(0xFF050505),
+                            radius = lensRadius,
+                            center = Offset(pillLeft + pillW * frac, lensY)
+                        )
+                        drawCircle(
+                            color = Color(0xFF3A3A3E),
+                            radius = lensRadius,
+                            center = Offset(pillLeft + pillW * frac, lensY),
+                            style = Stroke(width = 0.8.dp.toPx())
+                        )
+                    }
+
+                    // Glyph arc bounding box around the camera island
+                    val arcTopLeft = Offset(ringCenter.x - ringRadius, ringCenter.y - ringRadius)
+                    val arcSize = Size(ringRadius * 2f, ringRadius * 2f)
+                    val coreWidth = 4.5.dp.toPx()
+                    val glowWidth = 10.dp.toPx()
+
+                    // Strip C: Left curved arc (indices 0..19)
+                    if (activeStrip == GlyphStrip.STRIP_C) {
+                        drawArc(
+                            color = NothingRed.copy(alpha = 0.45f),
+                            startAngle = 128f,
+                            sweepAngle = 104f,
+                            useCenter = false,
+                            topLeft = arcTopLeft,
+                            size = arcSize,
+                            style = Stroke(width = glowWidth, cap = StrokeCap.Round)
+                        )
+                    }
+                    drawArc(
+                        color = stripCGlow,
+                        startAngle = 128f,
+                        sweepAngle = 104f,
+                        useCenter = false,
+                        topLeft = arcTopLeft,
+                        size = arcSize,
+                        style = Stroke(width = coreWidth, cap = StrokeCap.Round)
+                    )
+
+                    // Strip A: Top-Right arc (indices 20..30)
+                    if (activeStrip == GlyphStrip.STRIP_A) {
+                        drawArc(
+                            color = NothingRed.copy(alpha = 0.45f),
+                            startAngle = -52f,
+                            sweepAngle = 46f,
+                            useCenter = false,
+                            topLeft = arcTopLeft,
+                            size = arcSize,
+                            style = Stroke(width = glowWidth, cap = StrokeCap.Round)
+                        )
+                    }
+                    drawArc(
+                        color = stripAGlow,
+                        startAngle = -52f,
+                        sweepAngle = 46f,
+                        useCenter = false,
+                        topLeft = arcTopLeft,
+                        size = arcSize,
+                        style = Stroke(width = coreWidth, cap = StrokeCap.Round)
+                    )
+
+                    // Strip B: Bottom-Right short arc (indices 31..35)
+                    if (activeStrip == GlyphStrip.STRIP_B) {
+                        drawArc(
+                            color = NothingRed.copy(alpha = 0.45f),
+                            startAngle = 14f,
+                            sweepAngle = 34f,
+                            useCenter = false,
+                            topLeft = arcTopLeft,
+                            size = arcSize,
+                            style = Stroke(width = glowWidth, cap = StrokeCap.Round)
+                        )
+                    }
+                    drawArc(
+                        color = stripBGlow,
+                        startAngle = 14f,
+                        sweepAngle = 34f,
+                        useCenter = false,
+                        topLeft = arcTopLeft,
+                        size = arcSize,
+                        style = Stroke(width = coreWidth, cap = StrokeCap.Round)
+                    )
+
+                    // Bottom Nothing-style red accent dot
+                    drawCircle(
+                        color = NothingRed,
+                        radius = 2.5.dp.toPx(),
+                        center = Offset(w * 0.5f, h * 0.87f)
+                    )
+                }
+            }
+
+            // Live Hardware Test Pill Buttons (2s)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                GlyphStrip.entries.forEach { strip ->
+                    val isTesting = activeTestStrip == strip
+                    OutlinedButton(
+                        onClick = { onTestStrip(strip) },
+                        modifier = Modifier.weight(1f),
+                        shape = CircleShape,
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color = if (isTesting) NothingRed else NothingHairline
+                        ),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = if (isTesting) NothingRed else NothingCardElevated,
+                            contentColor = NothingWhite
+                        ),
+                        contentPadding = PaddingValues(vertical = 10.dp, horizontal = 4.dp)
+                    ) {
+                        Text(
+                            text = "TEST ${strip.label}",
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StatusAndControlsCard(
+    hasNotificationAccess: Boolean,
+    masterEnabled: Boolean,
+    pulseMode: Boolean,
+    onGrantAccess: () -> Unit,
+    onMasterToggle: (Boolean) -> Unit,
+    onPulseToggle: (Boolean) -> Unit
+) {
+    OutlinedCard(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.outlinedCardColors(containerColor = NothingCard),
+        border = BorderStroke(1.dp, NothingHairline),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = "SYSTEM // CONTROLS",
+                style = MaterialTheme.typography.titleMedium,
+                color = NothingWhite
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = if (hasNotificationAccess) {
+                            Icons.Default.CheckCircle
+                        } else {
+                            Icons.Default.NotificationsOff
+                        },
+                        contentDescription = null,
+                        tint = if (hasNotificationAccess) NothingGreen else NothingRed,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Column {
+                        Text(
+                            text = if (hasNotificationAccess) {
+                                "Notification Listener Active"
+                            } else {
+                                "Notification Access Required"
+                            },
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = NothingWhite
+                        )
+                        Text(
+                            text = if (hasNotificationAccess) {
+                                "Monitoring unread notifications"
+                            } else {
+                                "Enable access to trigger Glyph strips"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = NothingMuted
+                        )
+                    }
+                }
+
+                if (!hasNotificationAccess) {
+                    Button(
+                        onClick = onGrantAccess,
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = NothingRed,
+                            contentColor = NothingWhite
+                        ),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = "GRANT",
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
+                }
+            }
+
+            DottedDivider()
+
+            // Master Toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Master Glyph Mapping",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = NothingWhite
+                    )
+                    Text(
+                        text = "Illuminate strips for mapped unread apps",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = NothingMuted
+                    )
+                }
+                Switch(
+                    checked = masterEnabled,
+                    onCheckedChange = onMasterToggle,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = NothingWhite,
+                        checkedTrackColor = NothingRed,
+                        uncheckedThumbColor = NothingMuted,
+                        uncheckedTrackColor = NothingCardElevated,
+                        uncheckedBorderColor = NothingHairline
+                    )
+                )
+            }
+
+            DottedDivider()
+
+            // Pulse vs Solid Toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (pulseMode) "Breathing Pulse" else "Solid Glow",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = NothingWhite
+                    )
+                    Text(
+                        text = if (pulseMode) {
+                            "Gently animates active Glyph strips"
+                        } else {
+                            "Steady illumination while unread"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = NothingMuted
+                    )
+                }
+                Switch(
+                    checked = pulseMode,
+                    onCheckedChange = onPulseToggle,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = NothingWhite,
+                        checkedTrackColor = NothingRed,
+                        uncheckedThumbColor = NothingMuted,
+                        uncheckedTrackColor = NothingCardElevated,
+                        uncheckedBorderColor = NothingHairline
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DottedDivider(modifier: Modifier = Modifier) {
+    Canvas(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(1.dp)
+    ) {
+        drawLine(
+            color = NothingHairline,
+            start = Offset(0f, 0f),
+            end = Offset(size.width, 0f),
+            strokeWidth = 1.dp.toPx(),
+            pathEffect = PathEffect.dashPathEffect(floatArrayOf(6f, 8f), 0f)
+        )
+    }
+}
+
+@Composable
+private fun AppMappingCard(
     app: InstalledApp,
     assignedStrips: Set<GlyphStrip>,
     onToggleStrip: (GlyphStrip) -> Unit
 ) {
     val isMapped = assignedStrips.isNotEmpty()
-    Surface(
-        color = NothingSurface,
-        shape = RoundedCornerShape(12.dp),
+    OutlinedCard(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.outlinedCardColors(
+            containerColor = if (isMapped) NothingCardElevated else NothingCard
+        ),
         border = BorderStroke(
             width = 1.dp,
-            color = if (isMapped) NothingRed.copy(alpha = 0.5f) else NothingBorder
+            color = if (isMapped) NothingRed.copy(alpha = 0.55f) else NothingHairline
         ),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (app.icon != null) {
@@ -557,20 +864,20 @@ private fun AppMappingRow(
                     contentDescription = app.label,
                     modifier = Modifier
                         .size(38.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(10.dp))
                 )
             } else {
                 Box(
                     modifier = Modifier
                         .size(38.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(NothingSurfaceElevated),
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(NothingCardElevated),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = app.label.take(1).uppercase(),
-                        color = NothingWhite,
-                        fontWeight = FontWeight.Bold
+                        style = MaterialTheme.typography.titleMedium,
+                        color = NothingWhite
                     )
                 }
             }
@@ -580,16 +887,15 @@ private fun AppMappingRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = app.label,
+                    style = MaterialTheme.typography.bodyLarge,
                     color = NothingWhite,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = app.packageName,
+                    style = MaterialTheme.typography.bodySmall,
                     color = NothingMuted,
-                    fontSize = 11.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -600,28 +906,30 @@ private fun AppMappingRow(
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 GlyphStrip.entries.forEach { strip ->
                     val selected = strip in assignedStrips
-                    Surface(
-                        color = if (selected) NothingRed else NothingSurfaceElevated,
-                        shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(
-                            width = 1.dp,
-                            color = if (selected) NothingRed else NothingBorder
-                        ),
-                        modifier = Modifier
-                            .size(width = 34.dp, height = 32.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { onToggleStrip(strip) }
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
+                    FilterChip(
+                        selected = selected,
+                        onClick = { onToggleStrip(strip) },
+                        label = {
                             Text(
                                 text = strip.label,
-                                color = if (selected) NothingWhite else NothingMuted,
-                                fontSize = 12.sp,
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold
+                                style = MaterialTheme.typography.labelLarge
                             )
-                        }
-                    }
+                        },
+                        shape = CircleShape,
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = NothingCard,
+                            labelColor = NothingMuted,
+                            selectedContainerColor = NothingRed,
+                            selectedLabelColor = NothingWhite
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = selected,
+                            borderColor = NothingHairline,
+                            selectedBorderColor = NothingRed
+                        ),
+                        modifier = Modifier.height(34.dp)
+                    )
                 }
             }
         }
